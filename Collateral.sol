@@ -1,56 +1,22 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 // import "../../artifacts/@openzeppelin/contracts/access/Ownable.sol";
+//import "hardhat/console.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "hardhat/console.sol";
+import "Istore.sol";
 contract Collateral is Ownable {
     address EmiDeposit;
-    //uint256 constant THIRTY_DAY_EPOCH = 2629743; // number of seconds in thirty days
-   // uint256 constant CUSHION_PERIOD = 5 days;
-    uint256 constant ONE_MINUTE = 60;
+   //uint256 constant THIRTY_DAY_EPOCH = 2629743; // number of seconds in thirty days
+   //uint256 constant CUSHION_PERIOD = 5 days;
+    uint256 constant ONE_MINUTE = 120;
     uint256 constant CUSHION_PERIOD = 60 seconds;
     uint256 Penalty = 1; // penalty paid by the borrower for late payment, in % per day
 
     receive() external payable {}
 
-    struct ItemDetails {
-        uint256 tokenId;
-        uint256 EstimatedValue;
-        uint256 loanValue;
-        uint256 minRangeLoanDuration;
-        uint256 maxRangeLoanDuration;
-        uint256 minRangeInterestRate;
-        uint256 maxRangeInterestRate;
-        address borrower;
-    }
 
-    struct Item {
-        uint256 EstimatedValue;
-        uint256 loanValue;
-        uint256 minRangeLoanDuration;
-        uint256 maxRangeLoanDuration;
-        uint256 minRangeInterestRate;
-        uint256 maxRangeInterestRate;
-        uint256 remainingAmount;
-        uint256 EmiToPay;
-        uint256 EmiAmount;
-        uint256 EmiDate;
-        address borrower;
-    }
-
-    struct Proposal {
-        uint256 item;
-        uint256 amount;
-        uint256 interestRate;
-        uint256 proposalDuration;
-        uint256 emisPaid;
-        address investor;
-        bool approved;
-        bool active;
-    }
-
-    mapping(uint256 => Proposal[]) public itemNumberToProposals;
-    mapping(uint256 => Item) private ItemNumberToItem;
+    mapping(uint256 itemNumber => ICollateral.Proposal[]) public itemNumberToProposals;
+    mapping(uint256 itemNumber => ICollateral.Item) public ItemNumberToItem;
 
     modifier onlyBorrower(uint256 _itemNum) {
         
@@ -65,13 +31,13 @@ contract Collateral is Ownable {
         EmiDeposit =_address;
     }
 
-    function setProposal(ItemDetails memory itemDetails) external onlyOwner{
+    function setProposal(ICollateral.ItemDetails memory itemDetails) external onlyOwner{
         require(
             ItemNumberToItem[itemDetails.tokenId].EstimatedValue == 0,
             "Invalid Id"
         );
 
-        Item memory item = Item(
+        ICollateral.Item memory item = ICollateral.Item(
             itemDetails.EstimatedValue,
             itemDetails.loanValue,
             itemDetails.minRangeLoanDuration,
@@ -92,7 +58,7 @@ contract Collateral is Ownable {
         uint256 _interestRate,
         uint256 _duration
     ) external payable {
-        Item storage item = ItemNumberToItem[_itemNum];
+        ICollateral.Item storage item = ItemNumberToItem[_itemNum];
         require(
             item.EstimatedValue != 0,
             "InvestorProposalForWatch__InvalidItemNum"
@@ -113,11 +79,11 @@ contract Collateral is Ownable {
             "InvestorProposalForWatch__InvalidDuration"
         );
 
-        Proposal memory proposal = Proposal(
+        ICollateral.Proposal memory proposal = ICollateral.Proposal(
             _itemNum,
             msg.value,
             _interestRate,
-            block.timestamp, //change later to _duration
+            _duration, //change later to _duration
             0,
             msg.sender,
             false,
@@ -131,13 +97,13 @@ contract Collateral is Ownable {
         uint256 _itemNum,
         uint256 _proposalNum
     ) external onlyBorrower(_itemNum) returns (bool) {
-        Item storage item = ItemNumberToItem[_itemNum];
+        ICollateral.Item storage item = ItemNumberToItem[_itemNum];
         require(
             _proposalNum < itemNumberToProposals[_itemNum].length,
             "InvestorProposalForWatch__InvalidProposal"
         );
 
-        Proposal storage proposal = itemNumberToProposals[_itemNum][
+        ICollateral.Proposal storage proposal = itemNumberToProposals[_itemNum][
             _proposalNum
         ];
         require(
@@ -148,17 +114,17 @@ contract Collateral is Ownable {
             !proposal.approved,
             "InvestorProposalForWatch__AlreadyApproved"
         );
-
         item.remainingAmount -= proposal.amount;
         proposal.approved = true;
+        item.EmiDate = block.timestamp + ONE_MINUTE;
         return true;
     }
 
     function calculateTotalEmi(uint256 _itemNum) public view returns (uint256) {
-        Proposal[] memory proposals = itemNumberToProposals[_itemNum];
+        ICollateral.Proposal[] memory proposals = itemNumberToProposals[_itemNum];
         uint256 emi;
         for (uint256 i = 0; i < proposals.length; i++) {
-            Proposal memory proposal = proposals[i];
+            ICollateral.Proposal memory proposal = proposals[i];
             if (proposal.approved) {
                 emi += calculateEMI(
                     proposal.amount,
@@ -171,7 +137,7 @@ contract Collateral is Ownable {
     }
 
     function depositEmi(uint256 _itemNum) external payable {
-        Item memory item = getItem(_itemNum);
+        ICollateral.Item memory item = getItem(_itemNum);
         
         require(
             
@@ -192,13 +158,16 @@ contract Collateral is Ownable {
         }
         require(msg.value >= amount, "Amount is Less");
 
-        (bool sent, ) = msg.sender.call{value: msg.value - (amount + penalty)}(
-            " "
-        );
-        require(sent, "transfer failed");
-        uint256 balance = address(this).balance;
-        (bool send, ) = EmiDeposit.call{value: balance}(" ");
-        require(send, "transfer failed");
+        // (bool sent, ) = msg.sender.call{value: msg.value - (amount + penalty)}(
+        //     " "
+        // );
+        // require(sent, "transfer failed");
+        // uint256 balance = address(this).balance;
+        // (bool send, ) = EmiDeposit.call{value: balance}(" ");
+        // require(send, "transfer failed");
+        payable (msg.sender).transfer( msg.value - (amount + penalty));
+        uint256 balance = address(this).balance;  
+        payable(EmiDeposit).transfer(balance);
         item.EmiDate += ONE_MINUTE;
     }
 
@@ -217,6 +186,8 @@ contract Collateral is Ownable {
             (((1 + interest) ** month) - 1);
         return EMI;
     }
+//
+
 
     function getPenalty() internal view returns (uint256) {
         return Penalty;
@@ -230,17 +201,20 @@ contract Collateral is Ownable {
         return (principal * penalty) / (timeElapsed * 100); // time elapsed in days
     }
 
-    function getItem(uint256 _itemNum) public view returns (Item memory) {
+    function getItem(uint256 _itemNum) public view returns (ICollateral.Item memory) {
         return ItemNumberToItem[_itemNum];
     }
 
     function IncreaseInvestorEmiNumber(uint _itemNum, uint _proposalNum) internal {
         require(msg.sender == EmiDeposit, "you are not allowed");
-        Proposal storage proposal = itemNumberToProposals[_itemNum][_proposalNum];
+        ICollateral.Proposal storage proposal = itemNumberToProposals[_itemNum][_proposalNum];
         proposal.emisPaid++;
     }
 
-    function getProposals(uint256 _itemNum) public view returns (Proposal[] memory){
+    function getProposals(uint256 _itemNum) public view returns (ICollateral.Proposal[] memory){
         return itemNumberToProposals[_itemNum] ;
     }
 }
+
+//[1,10,1,1,12,12,24,"0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2"]
+//1000000000000000000
