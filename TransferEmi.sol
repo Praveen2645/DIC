@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "../../interfaces/IProposal.sol";
+import "IProposal.sol";
 
 contract TransferEmi is Ownable {
     IDICproposal emi;
 
     receive() external payable {}
 
-    function setDicProposal(address _address) external onlyOwner {
-        emi = IDICproposal(_address);
+    function setCollateralAddress(address _address) external onlyOwner {
+        emi = IDICproposal(_address); 
     }
 
     function transferEMIamountToInvestors(uint256 _itemNum) external payable returns (bool) {
