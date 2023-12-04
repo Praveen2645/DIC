@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "IProposal.sol";
+import "hardhat/console.sol";
 
 contract TransferEmi is Ownable {
     IDICproposal emi;
@@ -37,8 +38,11 @@ contract TransferEmi is Ownable {
         }
 
         for (uint256 i; i < InvestorAddresses.length; ) {
+
+          // payable(InvestorAddresses[i]).transfer(Payments[i]);
             (bool sent, ) = InvestorAddresses[i].call{value: Payments[i]}("");
-            require(sent, "InvestorProposalForWatch__transferFailed()");
+            require(sent, "transfer Failed()");
+          
             unchecked {
                 i++;
             }
@@ -46,4 +50,10 @@ contract TransferEmi is Ownable {
         }
         return true;
     }
+
+    function checkBalance() external view returns(uint256){
+       uint256 bal= address(this).balance;
+        return bal;
+    }
 }
+
