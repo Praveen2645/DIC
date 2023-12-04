@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
- pragma solidity ^0.8.20;
+pragma solidity ^0.8.20;
 interface IDICproposal {
    
     struct Proposal {
@@ -31,12 +31,9 @@ interface IDICproposal {
         uint256 principal,
         uint256 interest,
         uint256 month
-    ) external pure returns (uint256);
+    ) external pure returns (uint256); 
 
-    function getProposals(uint256 _itemNum)
-        external
-        view
-        returns (Proposal[] memory);
+    function getProposals(uint256 _itemNum)external view returns (Proposal[] memory);
 
     function getItems(uint256 _itemNum) external view returns (Item memory);
 
