@@ -38,4 +38,7 @@ interface ICollateral {
         bool approved;
         bool active;
     }
+
+ 
+    
 }
